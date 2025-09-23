@@ -2,37 +2,54 @@ pipeline {
     agent any
 
     environment {
-        IMAGE_NAME = "shankutanna/petclinic"
-        IMAGE_TAG = "latest"
+        APP_NAME = "spring-petclinic-17"
+        DOCKER_HUB_USER = "your-dockerhub-username"
+        DOCKER_IMAGE = "${DOCKER_HUB_USER}/${APP_NAME}"
     }
 
     stages {
+        stage('Build with Maven') {
+            steps {
+                sh 'mvn clean package -DskipTests'
+            }
+        }
+
         stage('Build Docker Image') {
             steps {
                 script {
-                    sh 'docker build -t $IMAGE_NAME:$IMAGE_TAG .'
+                    docker.build("${DOCKER_IMAGE}:latest")
                 }
             }
         }
 
-        stage('Push to Docker Hub') {
+        stage('Push Docker Image') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'dockerhub-creds', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-                    sh 'echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin'
-                    sh 'docker push $IMAGE_NAME:$IMAGE_TAG'
+                    sh """
+                        echo "$DOCKER_PASS" | docker login -u "$DOCKER_USER" --password-stdin
+                        docker push ${DOCKER_IMAGE}:latest
+                    """
                 }
             }
         }
 
-        stage('Deploy Container') {
+        stage('Run Container') {
             steps {
-                script {
-                    sh '''
-                    docker rm -f petclinic || true
-                    docker run -d --name petclinic -p 80:8080 $IMAGE_NAME:$IMAGE_TAG
-                    '''
-                }
+                sh """
+                    docker stop ${APP_NAME} || true
+                    docker rm ${APP_NAME} || true
+                    docker run -d --name ${APP_NAME} -p 8080:8080 ${DOCKER_IMAGE}:latest
+                """
             }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Deployment successful! Access the app at http://<your-server-ip>:8080"
+        }
+        failure {
+            echo "❌ Build/Deploy failed. Check logs."
         }
     }
 }
