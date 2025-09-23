@@ -7,12 +7,6 @@ pipeline {
     }
 
     stages {
-        stage('Checkout') {
-            steps {
-                git branch: 'main', url: 'https://github.com/shankutanna/spring-petclinic-17.git'
-            }
-        }
-
         stage('Build Docker Image') {
             steps {
                 script {
